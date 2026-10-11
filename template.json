@@ -1,0 +1,376 @@
+{
+  "name": "Cap Screen Recording and Sharing",
+  "description": "Record and share screen videos with links and comments. Loom alternative.",
+  "category": "Other",
+  "tags": [
+    "cap",
+    "screen-recording",
+    "video",
+    "loom-alternative",
+    "mysql",
+    "s3"
+  ],
+  "image": "https://cdn.jsdelivr.net/gh/CapSoftware/Cap@a32e4806b3004071effe00243e1dabd52bc7068c/apps/web/public/logos/logo-solo.svg",
+  "upstream": {
+    "repo": "CapSoftware/Cap",
+    "version": "cap-web latest @ sha256:8ee4cbd3 (built 2026-09-07); cap-media-server latest @ sha256:2dc90e05 (built 2026-10-10)",
+    "checked": "2026-10-11"
+  },
+  "services": {
+    "Cap": {
+      "icon": "https://cdn.jsdelivr.net/gh/CapSoftware/Cap@a32e4806b3004071effe00243e1dabd52bc7068c/apps/web/public/logos/logo-solo.svg",
+      "source": {
+        "image": "ghcr.io/capsoftware/cap-web@sha256:8ee4cbd3fd87f88f538831aed06c954c525db9c2426a62abeaf0ca307c5e1ce9"
+      },
+      "startCommand": "/bin/sh -c \"i=0; until nc -w 3 $MYSQL_WAIT_HOST 3306 </dev/null >/dev/null 2>&1; do i=$((i+1)); if [ $i -ge 150 ]; then echo 'MySQL not reachable after 5 minutes'; exit 1; fi; echo 'waiting for MySQL'; sleep 2; done; HOSTNAME=:: exec node apps/web/server.js\"",
+      "preDeployCommand": null,
+      "healthcheckPath": "/api/status",
+      "healthcheckTimeout": 600,
+      "restartPolicyType": "ALWAYS",
+      "restartPolicyMaxRetries": null,
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": true,
+      "targetPort": 3000,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "PORT": {
+          "defaultValue": "3000",
+          "description": "Port the Next.js server listens on; Railway routes traffic and healthchecks here.",
+          "required": false
+        },
+        "WEB_URL": {
+          "defaultValue": "https://${{RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public URL of this Cap instance (share links, desktop app sign-in, OAuth callbacks). Change it when you add a custom domain.",
+          "required": false
+        },
+        "NEXTAUTH_URL": {
+          "defaultValue": "${{WEB_URL}}",
+          "description": "Must equal WEB_URL; NextAuth builds its callback URLs from it.",
+          "required": false
+        },
+        "NEXTAUTH_SECRET": {
+          "defaultValue": "${{secret(64, \"0123456789abcdef\")}}",
+          "description": "Signs session tokens (32 random bytes, hex). Changing it signs everyone out.",
+          "required": false
+        },
+        "DATABASE_ENCRYPTION_KEY": {
+          "defaultValue": "${{secret(64, \"0123456789abcdef\")}}",
+          "description": "32-byte hex key that encrypts stored credentials (e.g. a user's own S3 keys). Never change it after first boot.",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "mysql://${{MySQL.MYSQL_USER}}:${{MySQL.MYSQL_PASSWORD}}@${{MySQL.RAILWAY_PRIVATE_DOMAIN}}:3306/${{MySQL.MYSQL_DATABASE}}",
+          "description": "MySQL connection string over the private network (Cap requires MySQL).",
+          "required": false
+        },
+        "MYSQL_WAIT_HOST": {
+          "defaultValue": "${{MySQL.RAILWAY_PRIVATE_DOMAIN}}",
+          "description": "Host the start command waits for before booting; Cap migrates on boot and gives up after three quick attempts.",
+          "required": false
+        },
+        "CAP_AWS_BUCKET": {
+          "defaultValue": "${{Bucket.BUCKET}}",
+          "description": "Railway Bucket that stores recordings, thumbnails and exports.",
+          "required": false
+        },
+        "CAP_AWS_REGION": {
+          "defaultValue": "${{Bucket.REGION}}",
+          "description": "Bucket region.",
+          "required": false
+        },
+        "CAP_AWS_ACCESS_KEY": {
+          "defaultValue": "${{Bucket.ACCESS_KEY_ID}}",
+          "description": "Bucket access key.",
+          "required": false
+        },
+        "CAP_AWS_SECRET_KEY": {
+          "defaultValue": "${{Bucket.SECRET_ACCESS_KEY}}",
+          "description": "Bucket secret key.",
+          "required": false
+        },
+        "S3_PUBLIC_ENDPOINT": {
+          "defaultValue": "${{Bucket.ENDPOINT}}",
+          "description": "S3 endpoint used in the presigned URLs browsers and the desktop app upload to and play from.",
+          "required": false
+        },
+        "S3_INTERNAL_ENDPOINT": {
+          "defaultValue": "${{Bucket.ENDPOINT}}",
+          "description": "S3 endpoint for server-side calls (Railway Buckets have no private endpoint, so it equals the public one).",
+          "required": false
+        },
+        "S3_PATH_STYLE": {
+          "defaultValue": "true",
+          "description": "Use path-style bucket URLs (Cap's default for non-AWS storage). Keep true: browser uploads depend on the bucket CORS rule set by Bucket CORS.",
+          "required": false
+        },
+        "MEDIA_SERVER_URL": {
+          "defaultValue": "http://${{Cap Media Server.RAILWAY_PRIVATE_DOMAIN}}:3456",
+          "description": "Private address of the ffmpeg media server.",
+          "required": false
+        },
+        "MEDIA_SERVER_WEBHOOK_SECRET": {
+          "defaultValue": "${{secret(64, \"0123456789abcdef\")}}",
+          "description": "Shared secret for media-server progress callbacks; Cap Media Server references it.",
+          "required": false
+        },
+        "MEDIA_SERVER_WEBHOOK_URL": {
+          "defaultValue": "http://${{RAILWAY_PRIVATE_DOMAIN}}:3000",
+          "description": "Private address the media server calls back to (works because the start command binds to ::).",
+          "required": false
+        },
+        "CRON_SECRET": {
+          "defaultValue": "${{secret(64, \"0123456789abcdef\")}}",
+          "description": "Bearer token for Cap's maintenance endpoints; Cap Maintenance references it.",
+          "required": false
+        },
+        "CAP_VIDEOS_DEFAULT_PUBLIC": {
+          "defaultValue": "true",
+          "description": "New recordings are viewable by anyone with the link (upstream default). Set false to make them private until shared.",
+          "required": false
+        },
+        "CAP_ALLOWED_SIGNUP_DOMAINS": {
+          "defaultValue": "",
+          "description": "Comma-separated e-mail domains allowed to sign up, e.g. yourcompany.com. Empty = anyone who can receive the login code.",
+          "required": false
+        },
+        "RESEND_API_KEY": {
+          "defaultValue": "",
+          "description": "Resend API key for login-code and notification e-mails (HTTP API, works on every Railway plan). Without it, login codes are printed to this service's logs.",
+          "required": false
+        },
+        "RESEND_FROM_DOMAIN": {
+          "defaultValue": "",
+          "description": "Domain verified in Resend that e-mails are sent from, e.g. yourcompany.com.",
+          "required": false
+        },
+        "GOOGLE_CLIENT_ID": {
+          "defaultValue": "",
+          "description": "Optional Google OAuth client ID for 'Sign in with Google' (callback: WEB_URL/api/auth/callback/google).",
+          "required": false
+        },
+        "GOOGLE_CLIENT_SECRET": {
+          "defaultValue": "",
+          "description": "Optional Google OAuth client secret.",
+          "required": false
+        },
+        "ASSEMBLY_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional AssemblyAI key: automatic transcription and captions.",
+          "required": false
+        },
+        "GROQ_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional Groq key: AI titles, summaries and chapters (preferred generation provider).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional OpenAI key: AI features fallback.",
+          "required": false
+        },
+        "ANTHROPIC_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional Anthropic key: AI chat features.",
+          "required": false
+        }
+      }
+    },
+    "Cap Media Server": {
+      "icon": "https://cdn.simpleicons.org/ffmpeg/007808",
+      "source": {
+        "image": "ghcr.io/capsoftware/cap-media-server@sha256:2dc90e055447026d7ff70656344cde74ec91b9d458a6050d9be6040a7074b62b"
+      },
+      "startCommand": null,
+      "preDeployCommand": null,
+      "healthcheckPath": "/health",
+      "healthcheckTimeout": 300,
+      "restartPolicyType": "ALWAYS",
+      "restartPolicyMaxRetries": null,
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "PORT": {
+          "defaultValue": "3456",
+          "description": "Port the media server listens on (Bun binds [::], dual-stack); used for the healthcheck.",
+          "required": false
+        },
+        "MEDIA_SERVER_WEBHOOK_SECRET": {
+          "defaultValue": "${{Cap.MEDIA_SERVER_WEBHOOK_SECRET}}",
+          "description": "Shared with Cap: references Cap.MEDIA_SERVER_WEBHOOK_SECRET (edit it there).",
+          "required": false
+        },
+        "MEDIA_SERVER_WEB_ORIGIN": {
+          "defaultValue": "${{Cap.WEB_URL}}",
+          "description": "Cap's public origin; lets the media server fetch media through Cap's storage proxy with the shared secret.",
+          "required": false
+        }
+      }
+    },
+    "MySQL": {
+      "icon": "https://devicons.railway.app/i/mysql.svg",
+      "source": {
+        "image": "mysql:9.7.2"
+      },
+      "startCommand": "docker-entrypoint.sh mysqld --innodb-use-native-aio=0 --disable-log-bin --performance_schema=0 --innodb-buffer-pool-size=1G --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --max-connections=1000",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": {
+        "mountPath": "/var/lib/mysql"
+      },
+      "variables": {
+        "MYSQLHOST": {
+          "defaultValue": "${{RAILWAY_PRIVATE_DOMAIN}}",
+          "description": "Railway Private Domain Name.",
+          "required": false
+        },
+        "MYSQLPORT": {
+          "defaultValue": "3306",
+          "description": "MySQL port.",
+          "required": false
+        },
+        "MYSQLUSER": {
+          "defaultValue": "root",
+          "description": "MySQL user, used for the Data panel.",
+          "required": false
+        },
+        "MYSQL_URL": {
+          "defaultValue": "mysql://${{ MYSQLUSER }}:${{ MYSQL_ROOT_PASSWORD }}@${{ RAILWAY_PRIVATE_DOMAIN }}:3306/${{ MYSQL_DATABASE }}",
+          "description": "URL to connect to MySQL.",
+          "required": false
+        },
+        "MYSQLDATABASE": {
+          "defaultValue": "${{ MYSQL_DATABASE }}",
+          "description": "Default database, used for Data panel.",
+          "required": false
+        },
+        "MYSQLPASSWORD": {
+          "defaultValue": "${{ MYSQL_ROOT_PASSWORD }}",
+          "description": "Root password, used for Data panel.",
+          "required": false
+        },
+        "MYSQL_DATABASE": {
+          "defaultValue": "cap",
+          "description": "Database created on first boot; Cap's DATABASE_URL points at it.",
+          "required": false
+        },
+        "MYSQL_ROOT_PASSWORD": {
+          "defaultValue": "${{ secret(32, \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\") }}",
+          "description": "Root password for MySQL DB.",
+          "required": false
+        },
+        "MYSQL_USER": {
+          "defaultValue": "cap",
+          "description": "Application user created on first boot with full rights on MYSQL_DATABASE.",
+          "required": false
+        },
+        "MYSQL_PASSWORD": {
+          "defaultValue": "${{secret(32, \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\")}}",
+          "description": "Password of the application user (letters and digits only, it is embedded in a URL).",
+          "required": false
+        }
+      }
+    },
+    "Bucket CORS": {
+      "icon": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/aws.svg",
+      "source": {
+        "image": "amazon/aws-cli:2.37.12"
+      },
+      "startCommand": "/bin/sh -c \"aws s3api put-bucket-cors --bucket $BUCKET_NAME --endpoint-url $S3_ENDPOINT --region $S3_REGION --cors-configuration \\\"$CORS_CONFIGURATION\\\" && echo 'Bucket CORS configured for' $PUBLIC_ORIGIN\"",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "NEVER",
+      "restartPolicyMaxRetries": null,
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "AWS_ACCESS_KEY_ID": {
+          "defaultValue": "${{Bucket.ACCESS_KEY_ID}}",
+          "description": "Bucket access key.",
+          "required": false
+        },
+        "AWS_SECRET_ACCESS_KEY": {
+          "defaultValue": "${{Bucket.SECRET_ACCESS_KEY}}",
+          "description": "Bucket secret key.",
+          "required": false
+        },
+        "BUCKET_NAME": {
+          "defaultValue": "${{Bucket.BUCKET}}",
+          "description": "Bucket to configure.",
+          "required": false
+        },
+        "S3_ENDPOINT": {
+          "defaultValue": "${{Bucket.ENDPOINT}}",
+          "description": "Bucket S3 endpoint.",
+          "required": false
+        },
+        "S3_REGION": {
+          "defaultValue": "${{Bucket.REGION}}",
+          "description": "Bucket region.",
+          "required": false
+        },
+        "PUBLIC_ORIGIN": {
+          "defaultValue": "https://${{Cap.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Cap's public origin (used in the log line).",
+          "required": false
+        },
+        "CORS_CONFIGURATION": {
+          "defaultValue": "{\"CORSRules\":[{\"AllowedOrigins\":[\"https://${{Cap.RAILWAY_PUBLIC_DOMAIN}}\"],\"AllowedMethods\":[\"GET\",\"HEAD\",\"PUT\",\"POST\"],\"AllowedHeaders\":[\"*\"],\"ExposeHeaders\":[\"ETag\"],\"MaxAgeSeconds\":3600}]}",
+          "description": "CORS rule letting browsers on Cap's domain upload (multipart, needs ETag) and play recordings via presigned URLs. Add custom domains to AllowedOrigins and redeploy this service.",
+          "required": false
+        }
+      }
+    },
+    "Cap Maintenance": {
+      "icon": "https://cdn.simpleicons.org/curl/073551",
+      "source": {
+        "image": "curlimages/curl:8.22.0"
+      },
+      "startCommand": "/bin/sh -c \"for job in recover-failed-video-processing finalize-stale-desktop-segments; do curl -sS --max-time 240 --retry 2 --retry-delay 10 --retry-connrefused -o /dev/null -w \\\"$job: HTTP %{http_code} in %{time_total}s\\n\\\" -H \\\"Authorization: Bearer $CRON_SECRET\\\" \\\"$CAP_INTERNAL_URL/api/cron/$job\\\"; done\"",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "NEVER",
+      "restartPolicyMaxRetries": null,
+      "numReplicas": 1,
+      "cronSchedule": "*/15 * * * *",
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "CAP_INTERNAL_URL": {
+          "defaultValue": "http://${{Cap.RAILWAY_PRIVATE_DOMAIN}}:3000",
+          "description": "Cap's private address.",
+          "required": false
+        },
+        "CRON_SECRET": {
+          "defaultValue": "${{Cap.CRON_SECRET}}",
+          "description": "Shared with Cap: references Cap.CRON_SECRET (edit it there).",
+          "required": false
+        }
+      }
+    }
+  },
+  "buckets": [
+    "Bucket"
+  ]
+}
