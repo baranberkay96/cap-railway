@@ -1,5 +1,7 @@
 # Deploy and Host Cap with Railway
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/cap-screen-recording-and-sharing?referralCode=20H68q)
+
 Cap is an open-source screen recorder: record your screen and camera, get a shareable link right away, and collect comments on the video. This community template runs Cap's web app and ffmpeg media server on Railway with MySQL and a Railway Bucket for the recordings, so your videos stay in your own project.
 
 ## About Hosting Cap
